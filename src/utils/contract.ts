@@ -97,11 +97,11 @@ export type Liquidate = [
  *
  * @param {ContractName}  contractName
  * @param {string}  address
- * @param {Wallet}  signer
+ * @param {Wallet?}  signer
  *
  * @returns {Contract}
  */
-export function initContract(contractName: ContractName, address: string, signer: Wallet): Contract {
+export function initContract(contractName: ContractName, address: string, signer?: Wallet): Contract {
   const abi = getAbi(contractName)
   return new Contract(address, abi, signer)
 }
