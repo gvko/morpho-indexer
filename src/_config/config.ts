@@ -27,6 +27,18 @@ const config = {
     password: get('POSTGRES_PASSWORD').required().asString(),
     dbName: get('POSTGRES_DBNAME').required().asString(),
   },
+  networks: {
+    base: {
+      rpc: {
+        urls: get('BASE_RPC_PROVIDER_URLS').required().asArray(),
+        pollingIntervalMs: get('BASE_RPC_POLLING_INTERVAL_MS').required().asIntPositive(),
+        healthCheckIntervalSec: get('BASE_RPC_HEALTH_CHECK_INTERVAL_SEC').required().default(3).asIntPositive(),
+      },
+      contracts: {
+        morpho: get('BASE_MORPHO_CONTRACT_ADDRESS').required().asString(),
+      },
+    },
+  },
 }
 
 export default config

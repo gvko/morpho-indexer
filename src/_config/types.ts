@@ -13,3 +13,8 @@ export enum Environment {
   dev = 'dev',
   prd = 'prd',
 }
+
+export enum Network {
+  BASE = 'base',
+  ETH = 'eth',
+}
