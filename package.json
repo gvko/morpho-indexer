@@ -20,7 +20,8 @@
     "fmt": "prettier --write 'src/**/*.{ts,json}' 'test/**/*.{ts,json}'",
     "fmt:check": "prettier --check 'src/**/*.{ts,json}' 'test/**/*.{ts,json}'",
     "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.d.ts'",
-    "lint:fix": "eslint 'src/**/*.ts' --fix --ignore-pattern '**/*.d.ts'"
+    "lint:fix": "eslint 'src/**/*.ts' --fix --ignore-pattern '**/*.d.ts'",
+    "kysely-codegen": "ts-node scripts/generate-db-types.ts && pnpm fmt"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

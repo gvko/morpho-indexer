@@ -14,7 +14,6 @@ export const db = new Kysely<DB>({
       user: config.postgres.user,
       password: config.postgres.password,
       database: config.postgres.dbName,
-      max: 10,
     }),
   }),
   plugins: [new CamelCasePlugin()],

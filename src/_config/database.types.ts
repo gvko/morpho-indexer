@@ -3,4 +3,26 @@
  * Please do not edit it manually.
  */
 
-export interface DB {}
+import type { ColumnType } from 'kysely'
+
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U> ? ColumnType<S, I | undefined, U> : ColumnType<T, T | undefined, T>
+
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>
+
+export interface SystemState {
+  id: Generated<number>
+  lastUpdate: Generated<Int8>
+  totalShares: Generated<number>
+}
+
+export interface UserPoint {
+  address: string
+  points: Generated<number>
+  shares: Generated<number>
+}
+
+export interface DB {
+  systemState: SystemState
+  userPoints: UserPoint
+}
