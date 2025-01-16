@@ -34,8 +34,10 @@ export class UsersService {
       const userShare = Number(user.shares)
       const shareRatio = userShare / state.totalShares
       const accrued = pointsToDistribute * shareRatio
+      const newPoints = oldPoints + accrued
 
-      await this.update(user.address, { points: oldPoints + accrued })
+      await this.update(user.address, { points: newPoints })
+      logger.info({ userAddress: user.address, newPoints }, 'Recalculated points for user')
     }
 
     await this.stateService.update(state.id, { lastUpdate: eventTimestamp })
@@ -47,11 +49,17 @@ export class UsersService {
   async borrow(userAddress: string, shares: number, eventTimestamp: number) {
     const user = await this.getByAddress(userAddress)
 
+    let oldShares = 0
+    let newShares = 0
+
     if (!user) {
       await this.create({ address: userAddress, points: 0, shares })
     } else {
-      await this.update(userAddress, { shares: Number(user.shares) + shares })
+      oldShares = Number(user.shares)
+      newShares = oldShares + shares
+      await this.update(userAddress, { shares: newShares })
     }
+    logger.info({ userAddress, shares, oldShares, newShares }, 'Borrow: added shares for user')
 
     const state = await this.stateService.getCurrentState()
 
@@ -73,7 +81,9 @@ export class UsersService {
     if (user) {
       const oldShares = Number(user.shares)
       const newShares = Math.max(oldShares - shares, 0)
+
       await this.update(userAddress, { shares: newShares })
+      logger.info({ userAddress, shares, oldShares, newShares }, 'Repay: removed shares for user')
     } else {
       // user not found, nothing to repay
       logger.error(
@@ -102,7 +112,9 @@ export class UsersService {
     if (user) {
       const oldShares = Number(user.shares)
       const newShares = Math.max(oldShares - repaidShares, 0)
+
       await this.update(userAddress, { shares: newShares })
+      logger.info({ userAddress, repaidShares, oldShares, newShares }, 'Liquidate: removed shares for user')
     } else {
       // user not found, nothing to repay
       logger.error(

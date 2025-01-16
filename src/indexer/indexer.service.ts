@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common'
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common'
 import { Contract, EventLog, Log } from 'ethers'
 import { RpcService } from '../rpc/rpc.service'
 import { UsersService } from '../users/users.service'
@@ -43,14 +43,9 @@ export class IndexerService implements OnModuleInit {
       logger.error('🚨Failed to get head block')
       return
     }
+    const endBlock = headBlock.number
 
-    const block = await this.rpc.provider.getBlock(startBlock)
-    if (!block) {
-      logger.error({ fromBlock: startBlock }, 'Could not fetch block')
-      throw new InternalServerErrorException('Could not fetch block')
-    }
-
-    for (let fromBlock = startBlock; fromBlock <= headBlock.number; fromBlock += config.indexer.blocksToQueryAtOnce) {
+    for (let fromBlock = startBlock; fromBlock <= endBlock; fromBlock += config.indexer.blocksToQueryAtOnce) {
       const toBlock = fromBlock + config.indexer.blocksToQueryAtOnce
 
       const logs = await this.rpc.provider.getLogs({
@@ -59,10 +54,47 @@ export class IndexerService implements OnModuleInit {
         toBlock,
       })
 
-      logs.forEach((log) => this.parseAndProcessLog(log, block.timestamp, block.number, systemState.id))
+      if (logs.length > 0) {
+        logs.forEach((log) => this.parseAndProcessLog(log, log.blockNumber, systemState.id))
+      } else {
+        await this.stateService.update(systemState.id, { lastBlockIndexed: toBlock })
+      }
       logger.info({ fromBlock, toBlock }, 'Blocks processed')
     }
     logger.info('Backfill complete!')
+  }
+
+  private async parseAndProcessLog(log: Log, blockNumber: number, stateId: number) {
+    const parseLog = this.morphoContract.interface.parseLog(log)
+    if (!parseLog) {
+      logger.error(log, 'Log could not be parsed')
+      await this.stateService.update(stateId, { lastBlockIndexed: blockNumber })
+      return
+    }
+
+    const timestampSec = Date.now() / 1000
+
+    // TODO: Optimize: instead of doing DB updates on each event, just return the numbers
+    //   and the caller will decide what to do with the data
+    switch (parseLog.name) {
+      case EventName.Borrow:
+        await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), timestampSec)
+        break
+      case EventName.Repay:
+        await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), timestampSec)
+        break
+      case EventName.Liquidate:
+        await this.pointsService.liquidate(
+          parseLog.args.borrower,
+          Number(parseLog.args.repaidShares),
+          Number(parseLog.args.badDebtShares),
+          timestampSec,
+        )
+        break
+      default:
+        // Ignore unrelated logs
+        await this.stateService.update(stateId, { lastBlockIndexed: blockNumber })
+    }
   }
 
   /**
@@ -189,36 +221,6 @@ export class IndexerService implements OnModuleInit {
       )
       // TODO: implement retry for the given block range
       return []
-    }
-  }
-
-  private async parseAndProcessLog(log: Log, blockTimestamp: number, blockNumber: number, stateId: number) {
-    const parseLog = this.morphoContract.interface.parseLog(log)
-    if (!parseLog) {
-      logger.error(log, 'Log could not be parsed')
-      throw new InternalServerErrorException('Log could not be parsed')
-    }
-
-    // TODO: Optimize: instead of doing DB updates on each event, just return the numbers
-    //   and the caller will decide what to do with the data
-    switch (parseLog.name) {
-      case EventName.Borrow:
-        await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
-        break
-      case EventName.Repay:
-        await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
-        break
-      case EventName.Liquidate:
-        await this.pointsService.liquidate(
-          parseLog.args.borrower,
-          Number(parseLog.args.repaidShares),
-          Number(parseLog.args.badDebtShares),
-          blockTimestamp,
-        )
-        break
-      default:
-        // Ignore unrelated logs
-        await this.stateService.update(stateId, { lastBlockIndexed: blockNumber })
     }
   }
 }
