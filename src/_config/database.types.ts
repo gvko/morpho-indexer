@@ -12,6 +12,7 @@ export type Int8 = ColumnType<string, bigint | number | string, bigint | number 
 
 export interface SystemState {
   id: Generated<number>
+  lastBlockIndexed: Generated<Int8>
   lastUpdate: Generated<Int8>
   totalShares: Generated<number>
 }

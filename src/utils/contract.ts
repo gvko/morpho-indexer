@@ -64,24 +64,26 @@ export interface EventData {
   }
 }
 
-export type Borrow = [
+export type BorrowEvent = [
   bigint, // id (uint256)
   string, // caller (address)
   string, // onBehalf (address)
   string, // receiver (address)
   bigint, // assets (uint256)
   bigint, // shares (uint256)
+  EventData,
 ]
 
-export type Repay = [
+export type RepayEvent = [
   bigint, // id (uint256)
   string, // caller (address)
   string, // onBehalf (address)
   bigint, // assets (uint256)
   bigint, // shares (uint256)
+  EventData,
 ]
 
-export type Liquidate = [
+export type LiquidateEvent = [
   bigint, // id (uint256)
   string, // caller (address)
   string, // borrower (address)
@@ -90,6 +92,7 @@ export type Liquidate = [
   bigint, // seizedAssets (uint256)
   bigint, // badDebtAssets (uint256)
   bigint, // badDebtShares (uint256)
+  EventData,
 ]
 
 /**

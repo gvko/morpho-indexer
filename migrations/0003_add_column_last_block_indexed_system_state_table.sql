@@ -1,0 +1,2 @@
+ALTER TABLE system_state
+ADD COLUMN IF NOT EXISTS last_block_indexed BIGINT NOT NULL DEFAULT 0;

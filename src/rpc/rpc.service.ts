@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import config from '../_config/config'
 import { logger } from '../utils/logger'
-import { Contract, JsonRpcProvider, TransactionResponse } from 'ethers'
+import { JsonRpcProvider } from 'ethers'
 import { hasFirstElement, sleep } from '../utils/helpers'
-import { EventName } from '../utils/contract'
 import { Network } from '../_config/types'
 
 @Injectable()
@@ -115,94 +114,5 @@ export class RpcService {
 
       await sleep(config.networks[this.network].rpc.healthCheckIntervalSec, 'Waiting between RPC health-checks')
     }
-  }
-
-  /**
-   * Returns the balance of a wallet
-   *
-   * @param {string} address The address of the wallet to check the balance of
-   * @returns {Promise<bigint | null>}
-   */
-  async getWalletBalance(address: string): Promise<bigint | null> {
-    try {
-      return await this.provider.getBalance(address)
-    } catch (err: any) {
-      logger.error(
-        {
-          address,
-          code: err.code,
-          error: err.message,
-        },
-        '❌ Error getting wallet balance for an address',
-      )
-      return null
-    }
-  }
-
-  /**
-   * Returns the balance of an address for a given ERC20 token (contract)
-   *
-   * @param {string} tokenAddress The address of the token contract on which to check address balance
-   * @param {string} address The address of the address to check the balance of
-   * @returns {Promise<bigint | null>}
-   */
-  async getTokenBalance(tokenAddress: string, address: string): Promise<bigint | null> {
-    try {
-      const tokenContract = new Contract(tokenAddress, ['function balanceOf(address) returns (uint256)'], this.provider)
-
-      return await tokenContract.balanceOf(address)
-    } catch (err: any) {
-      logger.error(
-        {
-          address,
-          tokenAddress,
-          code: err.code,
-          error: err.message,
-        },
-        '❌ Error getting token balance for an address',
-      )
-      return null
-    }
-  }
-
-  /**
-   * Returns the current height of the network
-   *
-   * @return {Promise<number>}
-   */
-  async getCurrentHeight(): Promise<number | null> {
-    try {
-      return await this.provider.getBlockNumber()
-    } catch (err: any) {
-      logger.error({ code: err.code, error: err.message }, '❌ Error getting network height')
-      return null
-    }
-  }
-
-  /**
-   * Fetches past events of a given contract, that occurred between two given blocks in time
-   *
-   * @param {Contract}  contract
-   * @param {EventName} eventName
-   * @param {number}  fromBlock
-   * @param {number?} toBlock
-   * @returns {Promise<Event[]>}
-   */
-  async getPastEvents(contract: Contract, eventName: EventName, fromBlock: number, toBlock?: number) {
-    const filter = contract.filters[eventName]()
-    const endBlock = toBlock || 'latest'
-
-    return await contract.queryFilter(filter, fromBlock, endBlock)
-  }
-
-  /**
-   * Returns an onchain transaction object by the given tx hash.
-   * Null, if the transaction is not found.
-   *
-   * @param {string} txHash
-   * @returns {Promise<TransactionResponse | null>}
-   */
-  async getTxByHash(txHash: string): Promise<TransactionResponse | null> {
-    return await this.provider.getTransaction(txHash)
   }
 }
