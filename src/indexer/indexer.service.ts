@@ -50,8 +50,8 @@ export class IndexerService implements OnModuleInit {
       throw new InternalServerErrorException('Could not fetch block')
     }
 
-    for (let fromBlock = startBlock; fromBlock <= headBlock.number; fromBlock += 100) {
-      const toBlock = fromBlock + 100
+    for (let fromBlock = startBlock; fromBlock <= headBlock.number; fromBlock += config.indexer.blocksToQueryAtOnce) {
+      const toBlock = fromBlock + config.indexer.blocksToQueryAtOnce
 
       const logs = await this.rpc.provider.getLogs({
         address: this.morphoContract.getAddress(),

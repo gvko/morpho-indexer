@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common'
 import { db } from '../_config/database'
 import { StateService } from '../state/state.service'
 import { InsertUser, UpdateUser, User } from './types'
+import { SystemState } from '../state/types'
+import { logger } from '../utils/logger'
 
 @Injectable()
 export class UsersService {
@@ -13,16 +15,13 @@ export class UsersService {
    * Distributes points to all users based on the time difference
    * from the last update and their share ratio.
    */
-  async updatePointsForAll(currentTimestamp: number) {
-    const state = await this.stateService.getCurrent()
-
-    const timeDiffSeconds = currentTimestamp - Number(state.lastUpdate)
+  async updatePointsForAll(eventTimestamp: number, state: SystemState) {
+    const timeDiffSeconds = eventTimestamp - Number(state.lastUpdate)
     if (timeDiffSeconds <= 0) {
       return
     }
 
     if (state.totalShares === 0) {
-      await this.stateService.update(state.id, { lastUpdate: currentTimestamp })
       return
     }
 
@@ -39,15 +38,13 @@ export class UsersService {
       await this.update(user.address, { points: oldPoints + accrued })
     }
 
-    await this.stateService.update(state.id, { lastUpdate: currentTimestamp })
+    await this.stateService.update(state.id, { lastUpdate: eventTimestamp })
   }
 
   /**
    * Handle Borrow event: user gets 'shares' added.
    */
-  async borrow(userAddress: string, shares: number, timestamp: number) {
-    await this.updatePointsForAll(timestamp)
-
+  async borrow(userAddress: string, shares: number, eventTimestamp: number) {
     const user = await this.getByAddress(userAddress)
 
     if (!user) {
@@ -56,71 +53,80 @@ export class UsersService {
       await this.update(userAddress, { shares: Number(user.shares) + shares })
     }
 
-    const state = await this.stateService.getCurrent()
-    await this.stateService.update(state.id, { totalShares: Number(state.totalShares) + shares })
+    const state = await this.stateService.getCurrentState()
+
+    const totalShares = Number(state.totalShares) + shares
+    const newState = await this.stateService.update(state.id, {
+      totalShares,
+      lastUpdate: eventTimestamp,
+    })
+
+    await this.updatePointsForAll(eventTimestamp, newState)
   }
 
   /**
    * Handle Repay event: user gets 'shares' removed.
    */
-  async repay(userAddress: string, shares: number, timestamp: number) {
-    await this.updatePointsForAll(timestamp)
-
+  async repay(userAddress: string, shares: number, eventTimestamp: number) {
     const user = await this.getByAddress(userAddress)
-    if (!user) {
+
+    if (user) {
+      const oldShares = Number(user.shares)
+      const newShares = Math.max(oldShares - shares, 0)
+      await this.update(userAddress, { shares: newShares })
+    } else {
       // user not found, nothing to repay
-      return
+      logger.error(
+        { userAddress, shares, eventTimestamp },
+        'Tried to repay shares for non-existent user. Should not happen!',
+      )
     }
 
-    const oldShares = Number(user.shares)
-    const newShares = Math.max(oldShares - shares, 0)
-    await this.update(userAddress, { shares: newShares })
+    const state = await this.stateService.getCurrentState()
 
-    const state = await this.stateService.getCurrent()
+    const totalShares = Math.max(Number(state.totalShares) - shares, 0)
+    const newState = await this.stateService.update(state.id, {
+      totalShares,
+      lastUpdate: eventTimestamp,
+    })
 
-    const totalShares = Number(state.totalShares)
-    const updatedTotal = Math.max(totalShares - shares, 0)
-
-    await this.stateService.update(state.id, { totalShares: updatedTotal })
+    await this.updatePointsForAll(eventTimestamp, newState)
   }
 
   /**
-   * Handle Liquidate event: reduce user's shares by repaidShares,
-   * and reduce total market shares by badDebtShares.
+   * Handle Liquidate event: reduce user's shares by repaidShares and reduce total market shares by badDebtShares.
    */
-  async liquidate(userAddress: string, repaidShares: number, badDebtShares: number, timestamp: number) {
-    await this.updatePointsForAll(timestamp)
-
+  async liquidate(userAddress: string, repaidShares: number, badDebtShares: number, eventTimestamp: number) {
     const user = await this.getByAddress(userAddress)
 
     if (user) {
       const oldShares = Number(user.shares)
       const newShares = Math.max(oldShares - repaidShares, 0)
       await this.update(userAddress, { shares: newShares })
+    } else {
+      // user not found, nothing to repay
+      logger.error(
+        { userAddress, repaidShares, badDebtShares, eventTimestamp },
+        'Tried to liquidate shares for non-existent user. Should not happen!',
+      )
     }
 
-    const state = await this.stateService.getCurrent()
+    const state = await this.stateService.getCurrentState()
 
-    const totalShares = Number(state.totalShares)
-    const adjustedTotal = Math.max(totalShares - badDebtShares, 0)
+    const totalShares = Math.max(Number(state.totalShares) - badDebtShares, 0)
+    const newState = await this.stateService.update(state.id, {
+      totalShares,
+      lastUpdate: eventTimestamp,
+    })
 
-    await this.stateService.update(state.id, { totalShares: adjustedTotal })
+    await this.updatePointsForAll(eventTimestamp, newState)
   }
 
   /**
-   * Returns current user points from DB. Make sure to
-   * call updatePointsForAll() if you want them accrued to 'now'.
+   * Fetch the users by points.
    */
-  async getUserPoints(addr: string): Promise<number> {
-    const row = await db.selectFrom(this.tableName).where('address', '=', addr).select('points').executeTakeFirst()
-    return row ? Number(row.points) : 0
-  }
-
-  /**
-   * Fetch the top N users by points.
-   */
-  async getTopUsers(limit = 10) {
-    return db.selectFrom(this.tableName).select(['address', 'points']).orderBy('points', 'desc').limit(limit).execute()
+  async getUsersSortedByPoints() {
+    return db.selectFrom(this.tableName).select(['address', 'points']).orderBy('points', 'desc').execute()
   }
 
   private async getByAddress(address: string): Promise<User | undefined> {

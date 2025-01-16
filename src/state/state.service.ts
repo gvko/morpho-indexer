@@ -9,7 +9,7 @@ export class StateService {
    * If there's no row in system_state, it will create one with the given timestamp.
    */
   async init(): Promise<SystemState> {
-    const existingState = await this.getCurrent()
+    const existingState = await this.getCurrentState()
 
     if (!existingState) {
       return await db
@@ -25,7 +25,7 @@ export class StateService {
     return existingState
   }
 
-  async getCurrent(): Promise<SystemState> {
+  async getCurrentState(): Promise<SystemState> {
     return await db.selectFrom('systemState').selectAll().limit(1).executeTakeFirstOrThrow()
   }
 
