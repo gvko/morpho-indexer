@@ -4,6 +4,6 @@ import { StateService } from './state.service'
 @Module({
   imports: [],
   providers: [StateService],
-  controllers: [],
+  exports: [StateService],
 })
 export class StateModule {}
