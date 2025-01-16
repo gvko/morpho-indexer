@@ -40,6 +40,9 @@ const config = {
       privateKey: get('BASE_WALLET_PRIVATE_KEY').required().asString(),
     },
   },
+  indexer: {
+    blocksToQueryAtOnce: get('INDEXER_BLOCKS_TO_QUERY_AT_ONCE').default(1000).asIntPositive(),
+  },
 }
 
 export default config
