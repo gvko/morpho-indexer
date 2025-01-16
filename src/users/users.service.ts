@@ -4,7 +4,7 @@ import { StateService } from '../state/state.service'
 import { InsertUser, UpdateUser, User } from './types'
 
 @Injectable()
-export class PointsService {
+export class UsersService {
   private readonly tableName = 'users'
 
   constructor(@Inject(StateService) private readonly stateService: StateService) {}

@@ -1,7 +1,7 @@
 import { Inject, Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common'
 import { Contract, EventLog, Log } from 'ethers'
 import { RpcService } from '../rpc/rpc.service'
-import { PointsService } from '../points/points.service'
+import { UsersService } from '../users/users.service'
 import { BorrowEvent, ContractName, EventName, initContract, LiquidateEvent, RepayEvent } from '../utils/contract'
 import config from '../_config/config'
 import { logger } from '../utils/logger'
@@ -17,7 +17,7 @@ export class IndexerService implements OnModuleInit {
   constructor(
     @Inject(RpcService) private readonly rpcService: RpcService,
     @Inject(StateService) private readonly stateService: StateService,
-    @Inject(PointsService) private readonly pointsService: PointsService,
+    @Inject(UsersService) private readonly pointsService: UsersService,
   ) {
     this.network = Network.BASE
     this.rpc = this.rpcService.instance
@@ -35,6 +35,8 @@ export class IndexerService implements OnModuleInit {
   private async backfillEvents() {
     const systemState = await this.stateService.init()
     const fromBlock = Number(systemState.lastBlockIndexed)
+
+    logger.info({ fromBlock }, 'Start backfill')
 
     const headBlock = await this.rpc.provider.getBlock('latest')
     if (!headBlock) {
@@ -58,6 +60,7 @@ export class IndexerService implements OnModuleInit {
       })
       logs.forEach((log) => this.parseAndProcessLog(log, block.timestamp))
     }
+    logger.info('Backfill complete!')
   }
 
   /**
@@ -198,18 +201,37 @@ export class IndexerService implements OnModuleInit {
     //   and the caller will decide what to do with the data
     switch (parseLog.name) {
       case EventName.Borrow:
-        await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
+        // await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
+        console.log('\n===> Borrow')
+        console.log({
+          onBehalf: parseLog.args.onBehalf,
+          shares: Number(parseLog.args.shares),
+          blockTimestamp,
+        })
         break
       case EventName.Repay:
-        await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
+        // await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
+        console.log('\n===> Repay')
+        console.log({
+          onBehalf: parseLog.args.onBehalf,
+          shares: Number(parseLog.args.shares),
+          blockTimestamp,
+        })
         break
       case EventName.Liquidate:
-        await this.pointsService.liquidate(
-          parseLog.args.borrower,
-          Number(parseLog.args.repaidShares),
-          Number(parseLog.args.badDebtShares),
+        // await this.pointsService.liquidate(
+        //   parseLog.args.borrower,
+        //   Number(parseLog.args.repaidShares),
+        //   Number(parseLog.args.badDebtShares),
+        //   blockTimestamp,
+        // )
+        console.log('\n===> Liquidate')
+        console.log({
+          borrower: parseLog.args.borrower,
+          repaidShares: Number(parseLog.args.repaidShares),
+          badDebtShares: Number(parseLog.args.badDebtShares),
           blockTimestamp,
-        )
+        })
         break
       default:
       // Ignore unrelated logs

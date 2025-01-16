@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common'
 import { RpcModule } from '../rpc/rpc.module'
 import { IndexerService } from './indexer.service'
-import { PointsModule } from '../points/points.module'
+import { UsersModule } from '../users/users.module'
 import { StateModule } from '../state/state.module'
 
 @Module({
-  imports: [RpcModule, PointsModule, StateModule],
+  imports: [RpcModule, UsersModule, StateModule],
   providers: [IndexerService],
   controllers: [],
 })
