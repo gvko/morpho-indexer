@@ -25,6 +25,14 @@ export class IndexerService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    this.init()
+  }
+
+  /**
+   * Have separate init method, so that we can trigger the backfill and let NestJS finish initializing
+   * the rest of the app. Otherwise, the app won't finish initializing until the backfill is complete.
+   */
+  async init(){
     await this.backfillEvents()
 
     this.listenBorrowEvents()
@@ -65,8 +73,8 @@ export class IndexerService implements OnModuleInit {
   }
 
   private async parseAndProcessLog(log: Log, blockNumber: number, stateId: number) {
-    const parseLog = this.morphoContract.interface.parseLog(log)
-    if (!parseLog) {
+    const parsedLog = this.morphoContract.interface.parseLog(log)
+    if (!parsedLog) {
       logger.error(log, 'Log could not be parsed')
       await this.stateService.update(stateId, { lastBlockIndexed: blockNumber })
       return
@@ -76,18 +84,18 @@ export class IndexerService implements OnModuleInit {
 
     // TODO: Optimize: instead of doing DB updates on each event, just return the numbers
     //   and the caller will decide what to do with the data
-    switch (parseLog.name) {
+    switch (parsedLog.name) {
       case EventName.Borrow:
-        await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), timestampSec)
+        await this.pointsService.borrow(parsedLog.args.onBehalf, Number(parsedLog.args.shares), timestampSec)
         break
       case EventName.Repay:
-        await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), timestampSec)
+        await this.pointsService.repay(parsedLog.args.onBehalf, Number(parsedLog.args.shares), timestampSec)
         break
       case EventName.Liquidate:
         await this.pointsService.liquidate(
-          parseLog.args.borrower,
-          Number(parseLog.args.repaidShares),
-          Number(parseLog.args.badDebtShares),
+          parsedLog.args.borrower,
+          Number(parsedLog.args.repaidShares),
+          Number(parsedLog.args.badDebtShares),
           timestampSec,
         )
         break

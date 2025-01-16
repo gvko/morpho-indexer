@@ -1,5 +1,4 @@
 import { Contract, Interface, Wallet } from 'ethers'
-import morpho from './abi/morpho'
 
 export enum EventName {
   Borrow = 'Borrow',
@@ -12,7 +11,33 @@ export enum ContractName {
 }
 
 export const ContractABI: { [name in ContractName]: any } = {
-  Morpho: morpho,
+  Morpho: [
+    `event Borrow(
+    (uint256) id,
+    address caller,
+    address onBehalf,
+    address receiver,
+    uint256 assets,
+    uint256 shares
+  )`,
+    `event Repay(
+    (uint256) id,
+    address caller,
+    address onBehalf,
+    uint256 assets,
+    uint256 shares
+  )`,
+    `event Liquidate(
+    (uint256) id,
+    address caller,
+    address borrower,
+    uint256 repaidAssets,
+    uint256 repaidShares,
+    uint256 seizedAssets,
+    uint256 badDebtAssets,
+    uint256 badDebtShares
+  )`,
+  ],
 }
 
 export interface EventData {
