@@ -1,5 +1,9 @@
+# Morpho indexer
 
-
+## Getting started
+1. install dependencies: `pnpm i`
+2. start the DB: `docker-compose up -d postgres`
+3. set up local env variables:
 
 ### To improve:
 - make RPC service multi-chain

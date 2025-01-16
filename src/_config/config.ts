@@ -37,7 +37,6 @@ const config = {
       contracts: {
         morpho: get('BASE_MORPHO_CONTRACT_ADDRESS').required().asString(),
       },
-      privateKey: get('BASE_WALLET_PRIVATE_KEY').required().asString(),
     },
   },
   indexer: {
