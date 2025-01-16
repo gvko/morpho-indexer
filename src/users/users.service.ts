@@ -125,7 +125,7 @@ export class UsersService {
 
     const state = await this.stateService.getCurrentState()
 
-    const totalShares = Math.max(Number(state.totalShares) - badDebtShares, 0)
+    const totalShares = Math.max(Number(state.totalShares) - badDebtShares - repaidShares, 0)
     const newState = await this.stateService.update(state.id, {
       totalShares,
       lastUpdate: eventTimestamp,
