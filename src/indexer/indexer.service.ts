@@ -34,9 +34,9 @@ export class IndexerService implements OnModuleInit {
 
   private async backfillEvents() {
     const systemState = await this.stateService.init()
-    const fromBlock = Number(systemState.lastBlockIndexed)
+    const startBlock = Number(systemState.lastBlockIndexed)
 
-    logger.info({ fromBlock }, 'Start backfill')
+    logger.info({ fromBlock: startBlock }, 'Start backfill')
 
     const headBlock = await this.rpc.provider.getBlock('latest')
     if (!headBlock) {
@@ -44,21 +44,23 @@ export class IndexerService implements OnModuleInit {
       return
     }
 
-    const block = await this.rpc.provider.getBlock(fromBlock)
+    const block = await this.rpc.provider.getBlock(startBlock)
     if (!block) {
-      logger.error({ fromBlock }, 'Log could fetch block')
-      throw new InternalServerErrorException('Log could fetch block')
+      logger.error({ fromBlock: startBlock }, 'Could not fetch block')
+      throw new InternalServerErrorException('Could not fetch block')
     }
 
-    for (let blockNumber = fromBlock; blockNumber <= headBlock.number; blockNumber += 100) {
-      const toBlock = blockNumber + 100
+    for (let fromBlock = startBlock; fromBlock <= headBlock.number; fromBlock += 100) {
+      const toBlock = fromBlock + 100
 
       const logs = await this.rpc.provider.getLogs({
         address: this.morphoContract.getAddress(),
         fromBlock,
         toBlock,
       })
-      logs.forEach((log) => this.parseAndProcessLog(log, block.timestamp))
+
+      logs.forEach((log) => this.parseAndProcessLog(log, block.timestamp, block.number, systemState.id))
+      logger.info({ fromBlock, toBlock }, 'Blocks processed')
     }
     logger.info('Backfill complete!')
   }
@@ -190,7 +192,7 @@ export class IndexerService implements OnModuleInit {
     }
   }
 
-  private async parseAndProcessLog(log: Log, blockTimestamp: number) {
+  private async parseAndProcessLog(log: Log, blockTimestamp: number, blockNumber: number, stateId: number) {
     const parseLog = this.morphoContract.interface.parseLog(log)
     if (!parseLog) {
       logger.error(log, 'Log could not be parsed')
@@ -201,40 +203,22 @@ export class IndexerService implements OnModuleInit {
     //   and the caller will decide what to do with the data
     switch (parseLog.name) {
       case EventName.Borrow:
-        // await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
-        console.log('\n===> Borrow')
-        console.log({
-          onBehalf: parseLog.args.onBehalf,
-          shares: Number(parseLog.args.shares),
-          blockTimestamp,
-        })
+        await this.pointsService.borrow(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
         break
       case EventName.Repay:
-        // await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
-        console.log('\n===> Repay')
-        console.log({
-          onBehalf: parseLog.args.onBehalf,
-          shares: Number(parseLog.args.shares),
-          blockTimestamp,
-        })
+        await this.pointsService.repay(parseLog.args.onBehalf, Number(parseLog.args.shares), blockTimestamp)
         break
       case EventName.Liquidate:
-        // await this.pointsService.liquidate(
-        //   parseLog.args.borrower,
-        //   Number(parseLog.args.repaidShares),
-        //   Number(parseLog.args.badDebtShares),
-        //   blockTimestamp,
-        // )
-        console.log('\n===> Liquidate')
-        console.log({
-          borrower: parseLog.args.borrower,
-          repaidShares: Number(parseLog.args.repaidShares),
-          badDebtShares: Number(parseLog.args.badDebtShares),
+        await this.pointsService.liquidate(
+          parseLog.args.borrower,
+          Number(parseLog.args.repaidShares),
+          Number(parseLog.args.badDebtShares),
           blockTimestamp,
-        })
+        )
         break
       default:
-      // Ignore unrelated logs
+        // Ignore unrelated logs
+        await this.stateService.update(stateId, { lastBlockIndexed: blockNumber })
     }
   }
 }
