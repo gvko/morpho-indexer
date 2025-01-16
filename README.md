@@ -32,3 +32,4 @@ The current scope is small, but in real-world scenarios this would allow for eas
 - ensure shares/points updates are truly sequential (maybe thru a message queue for all incoming events)
 - automated DB migrations
 - add tests
+- add CI pipeline
