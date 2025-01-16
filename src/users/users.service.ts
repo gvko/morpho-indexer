@@ -137,8 +137,8 @@ export class UsersService {
   /**
    * Fetch the users by points.
    */
-  async getUsersSortedByPoints() {
-    return db.selectFrom(this.tableName).select(['address', 'points']).orderBy('points', 'desc').execute()
+  async getUsersSortedByPoints(limit: number = 10) {
+    return db.selectFrom(this.tableName).select(['address', 'points']).orderBy('points', 'desc').limit(limit).execute()
   }
 
   private async getByAddress(address: string): Promise<User | undefined> {

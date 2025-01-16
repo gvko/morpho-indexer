@@ -32,7 +32,7 @@ export class IndexerService implements OnModuleInit {
    * Have separate init method, so that we can trigger the backfill and let NestJS finish initializing
    * the rest of the app. Otherwise, the app won't finish initializing until the backfill is complete.
    */
-  async init(){
+  async init() {
     await this.backfillEvents()
 
     this.listenBorrowEvents()
