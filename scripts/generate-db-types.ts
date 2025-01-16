@@ -3,7 +3,7 @@ import config from '../src/_config/config'
 
 try {
   const databaseUrl = `postgresql://${config.postgres.user}:${config.postgres.password}@${config.postgres.host}:${config.postgres.port}/${config.postgres.dbName}`
-  const tables = ['user_points', 'system_state']
+  const tables = ['users', 'system_state']
   const typeOverrides = {
     columns: {},
   }

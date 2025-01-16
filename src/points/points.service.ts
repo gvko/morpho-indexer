@@ -1,63 +1,45 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import { db } from '../_config/database'
-import { SystemState } from "./types";
+import { StateService } from '../state/state.service'
+import { InsertUser, UpdateUser, User } from './types'
 
 @Injectable()
 export class PointsService {
-  /**
-   * Call once at initialization (e.g., after getting the starting block's timestamp).
-   * If there's no row in system_state, it will create one with the given timestamp.
-   */
-  async init(): Promise<SystemState> {
-    const existingState = await db.selectFrom('systemState').selectAll().executeTakeFirst()
+  private readonly tableName = 'users'
 
-    if (!existingState) {
-      return await db
-        .insertInto('systemState')
-        .values({
-          totalShares: 0,
-          lastUpdate: Date.now() / 1000,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow()
-    }
-
-    return existingState
-  }
+  constructor(@Inject(StateService) private readonly stateService: StateService) {}
 
   /**
    * Distributes points to all users based on the time difference
    * from the last update and their share ratio.
    */
   async updatePointsForAll(currentTimestamp: number) {
-    const state = await db.selectFrom('systemState').selectAll().limit(1).executeTakeFirstOrThrow()
+    const state = await this.stateService.getCurrent()
 
-    const timeDiff = currentTimestamp - Number(state.lastUpdate)
-    if (timeDiff <= 0) return
-
-    const totalShares = Number(state.totalShares)
-    if (totalShares === 0) {
-      await db.updateTable('systemState').set({ lastUpdate: currentTimestamp }).where('id', '=', state.id).execute()
+    const timeDiffSeconds = currentTimestamp - Number(state.lastUpdate)
+    if (timeDiffSeconds <= 0) {
       return
     }
 
-    const pointsToDistribute = 100 * timeDiff // 100 points/second
+    if (state.totalShares === 0) {
+      await this.stateService.update(state.id, { lastUpdate: currentTimestamp })
+      return
+    }
 
-    const users = await db.selectFrom('userPoints').select(['address', 'points', 'shares']).execute()
+    const pointsToDistribute = 100 * timeDiffSeconds // 100 points/second
+
+    const users = await this.getAll()
 
     for (const user of users) {
       const oldPoints = Number(user.points)
       const userShare = Number(user.shares)
-      const shareRatio = userShare / totalShares
+      const shareRatio = userShare / state.totalShares
       const accrued = pointsToDistribute * shareRatio
-      await db
-        .updateTable('userPoints')
-        .set({ points: oldPoints + accrued })
-        .where('address', '=', user.address)
-        .execute()
+
+      await this.update(user.address, { points: oldPoints + accrued })
     }
 
-    await db.updateTable('systemState').set({ lastUpdate: currentTimestamp }).where('id', '=', state.id).execute()
+    await this.stateService.update(state.id, { lastUpdate: currentTimestamp })
   }
 
   /**
@@ -66,36 +48,16 @@ export class PointsService {
   async borrow(userAddress: string, shares: number, timestamp: number) {
     await this.updatePointsForAll(timestamp)
 
-    const currentUser = await db
-      .selectFrom('userPoints')
-      .selectAll()
-      .where('address', '=', userAddress)
-      .executeTakeFirst()
+    const user = await this.getByAddress(userAddress)
 
-    if (!currentUser) {
-      await db
-        .insertInto('userPoints')
-        .values({
-          address: userAddress,
-          points: 0,
-          shares,
-        })
-        .execute()
+    if (!user) {
+      await this.create({ address: userAddress, points: 0, shares })
     } else {
-      await db
-        .updateTable('userPoints')
-        .set({ shares: Number(currentUser.shares) + shares })
-        .where('address', '=', userAddress)
-        .execute()
+      await this.update(userAddress, { shares: Number(user.shares) + shares })
     }
 
-    const state = await db.selectFrom('systemState').selectAll().limit(1).executeTakeFirstOrThrow()
-
-    await db
-      .updateTable('systemState')
-      .set({ totalShares: Number(state.totalShares) + shares })
-      .where('id', '=', state.id)
-      .execute()
+    const state = await this.stateService.getCurrent()
+    await this.stateService.update(state.id, { totalShares: Number(state.totalShares) + shares })
   }
 
   /**
@@ -104,8 +66,7 @@ export class PointsService {
   async repay(userAddress: string, shares: number, timestamp: number) {
     await this.updatePointsForAll(timestamp)
 
-    const user = await db.selectFrom('userPoints').selectAll().where('address', '=', userAddress).executeTakeFirst()
-
+    const user = await this.getByAddress(userAddress)
     if (!user) {
       // user not found, nothing to repay
       return
@@ -113,15 +74,14 @@ export class PointsService {
 
     const oldShares = Number(user.shares)
     const newShares = Math.max(oldShares - shares, 0)
+    await this.update(userAddress, { shares: newShares })
 
-    await db.updateTable('userPoints').set({ shares: newShares }).where('address', '=', userAddress).execute()
-
-    const state = await db.selectFrom('systemState').selectAll().limit(1).executeTakeFirstOrThrow()
+    const state = await this.stateService.getCurrent()
 
     const totalShares = Number(state.totalShares)
     const updatedTotal = Math.max(totalShares - shares, 0)
 
-    await db.updateTable('systemState').set({ totalShares: updatedTotal }).where('id', '=', state.id).execute()
+    await this.stateService.update(state.id, { totalShares: updatedTotal })
   }
 
   /**
@@ -131,24 +91,20 @@ export class PointsService {
   async liquidate(userAddress: string, repaidShares: number, badDebtShares: number, timestamp: number) {
     await this.updatePointsForAll(timestamp)
 
-    const currentUser = await db
-      .selectFrom('userPoints')
-      .selectAll()
-      .where('address', '=', userAddress)
-      .executeTakeFirst()
+    const user = await this.getByAddress(userAddress)
 
-    if (currentUser) {
-      const oldShares = Number(currentUser.shares)
+    if (user) {
+      const oldShares = Number(user.shares)
       const newShares = Math.max(oldShares - repaidShares, 0)
-      await db.updateTable('userPoints').set({ shares: newShares }).where('address', '=', userAddress).execute()
+      await this.update(userAddress, { shares: newShares })
     }
 
-    const state = await db.selectFrom('systemState').selectAll().limit(1).executeTakeFirstOrThrow()
+    const state = await this.stateService.getCurrent()
 
     const totalShares = Number(state.totalShares)
     const adjustedTotal = Math.max(totalShares - badDebtShares, 0)
 
-    await db.updateTable('systemState').set({ totalShares: adjustedTotal }).where('id', '=', state.id).execute()
+    await this.stateService.update(state.id, { totalShares: adjustedTotal })
   }
 
   /**
@@ -156,7 +112,7 @@ export class PointsService {
    * call updatePointsForAll() if you want them accrued to 'now'.
    */
   async getUserPoints(addr: string): Promise<number> {
-    const row = await db.selectFrom('userPoints').where('address', '=', addr).select('points').executeTakeFirst()
+    const row = await db.selectFrom(this.tableName).where('address', '=', addr).select('points').executeTakeFirst()
     return row ? Number(row.points) : 0
   }
 
@@ -164,6 +120,22 @@ export class PointsService {
    * Fetch the top N users by points.
    */
   async getTopUsers(limit = 10) {
-    return db.selectFrom('userPoints').select(['address', 'points']).orderBy('points', 'desc').limit(limit).execute()
+    return db.selectFrom(this.tableName).select(['address', 'points']).orderBy('points', 'desc').limit(limit).execute()
+  }
+
+  private async getByAddress(address: string): Promise<User | undefined> {
+    return await db.selectFrom(this.tableName).selectAll().where('address', '=', address).executeTakeFirst()
+  }
+
+  private async getAll(): Promise<User[]> {
+    return await db.selectFrom(this.tableName).selectAll().execute()
+  }
+
+  private async update(address: string, data: UpdateUser): Promise<User> {
+    return (await db.updateTable(this.tableName).set(data).where('address', '=', address).returningAll().execute())[0]
+  }
+
+  private async create(data: InsertUser): Promise<User> {
+    return (await db.insertInto(this.tableName).values(data).returningAll().execute())[0]
   }
 }

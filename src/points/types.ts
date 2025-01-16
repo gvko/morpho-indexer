@@ -1,6 +1,6 @@
-import { Selectable } from 'kysely'
-import { UserPoint as DbUserPoint } from '../_config/database.types'
-import { SystemState as DbSystemState } from '../_config/database.types'
+import { Insertable, Selectable, Updateable } from 'kysely'
+import { User as DbUser } from '../_config/database.types'
 
-export type SystemState = Selectable<DbSystemState>
-export type UserPoint = Selectable<DbUserPoint>
+export type User = Selectable<DbUser>
+export type InsertUser = Insertable<DbUser>
+export type UpdateUser = Updateable<DbUser>

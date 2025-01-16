@@ -17,7 +17,7 @@ export interface SystemState {
   totalShares: Generated<number>
 }
 
-export interface UserPoint {
+export interface User {
   address: string
   points: Generated<number>
   shares: Generated<number>
@@ -25,5 +25,5 @@ export interface UserPoint {
 
 export interface DB {
   systemState: SystemState
-  userPoints: UserPoint
+  users: User
 }

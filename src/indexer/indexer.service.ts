@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common'
+import { Inject, Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common'
 import { Contract, EventLog, Log } from 'ethers'
 import { RpcService } from '../rpc/rpc.service'
 import { PointsService } from '../points/points.service'
@@ -6,6 +6,7 @@ import { BorrowEvent, ContractName, EventName, initContract, LiquidateEvent, Rep
 import config from '../_config/config'
 import { logger } from '../utils/logger'
 import { Network } from '../_config/types'
+import { StateService } from '../state/state.service'
 
 @Injectable()
 export class IndexerService implements OnModuleInit {
@@ -14,8 +15,9 @@ export class IndexerService implements OnModuleInit {
   private readonly network: Network
 
   constructor(
-    private readonly rpcService: RpcService,
-    private readonly pointsService: PointsService,
+    @Inject(RpcService) private readonly rpcService: RpcService,
+    @Inject(StateService) private readonly stateService: StateService,
+    @Inject(PointsService) private readonly pointsService: PointsService,
   ) {
     this.network = Network.BASE
     this.rpc = this.rpcService.instance
@@ -31,7 +33,7 @@ export class IndexerService implements OnModuleInit {
   }
 
   private async backfillEvents() {
-    const systemState = await this.pointsService.init()
+    const systemState = await this.stateService.init()
     const fromBlock = Number(systemState.lastBlockIndexed)
 
     const headBlock = await this.rpc.provider.getBlock('latest')
