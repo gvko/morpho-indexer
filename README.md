@@ -33,3 +33,4 @@ The current scope is small, but in real-world scenarios this would allow for eas
 - automated DB migrations
 - add tests
 - add CI pipeline
+- better error handling and logs of certain operations and scenarios like updates to the DB or log parsing
